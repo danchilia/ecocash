@@ -1,0 +1,21 @@
+# dependencies / build output
+node_modules/
+.vercel/
+.DS_Store
+*.log
+
+# editor
+.vscode/
+.idea/
+
+# local env / secrets
+.env
+.env.local
+
+# local dev data store (file-based fallback)
+.data/
+
+# local smoke-test artifacts (never commit)
+.smoke*.js
+.smoke*.json
+.fetch-client/
