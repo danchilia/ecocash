@@ -24,22 +24,22 @@ export default async function handler(req, res) {
   if (!current || !next || !confirm) {
     return res
       .status(400)
-      .json({ ok: false, error: "Jaza sehemu zote." });
+      .json({ ok: false, error: "Please fill in all fields." });
   }
   if (next.length < 6) {
     return res
       .status(400)
-      .json({ ok: false, error: "Nenosiri jipya liwe na angalau herufi 6." });
+      .json({ ok: false, error: "New password must be at least 6 characters." });
   }
   if (next !== confirm) {
     return res
       .status(400)
-      .json({ ok: false, error: "Nenosiri jipya halifanani." });
+      .json({ ok: false, error: "New passwords do not match." });
   }
   if (next === current) {
     return res
       .status(400)
-      .json({ ok: false, error: "Nenosiri jipya liwe tofauti na la zamani." });
+      .json({ ok: false, error: "New password must differ from the current one." });
   }
 
   try {
@@ -47,23 +47,23 @@ export default async function handler(req, res) {
     if (!currentOk) {
       return res
         .status(401)
-        .json({ ok: false, error: "Nenosiri la sasa si sahihi." });
+        .json({ ok: false, error: "Current password is incorrect." });
     }
     const result = await setPassword(next);
     if (!result || !result.ok) {
       return res
         .status(400)
-        .json({ ok: false, error: (result && result.error) || "Imeshindwa kubadilisha." });
+        .json({ ok: false, error: (result && result.error) || "Could not change password." });
     }
     return res.status(200).json({
       ok: true,
-      message: "Nenosiri limebadilishwa.",
+      message: "Password changed.",
       updatedAt: result.updatedAt,
     });
   } catch (err) {
     console.error("change-password error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Hitilafu ya seva." });
+      .json({ ok: false, error: "Server error." });
   }
 }

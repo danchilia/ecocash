@@ -31,6 +31,6 @@ export default async function handler(req, res) {
     console.error("admin code error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Imeshindwa kupata namba." });
+      .json({ ok: false, error: "Failed to load code." });
   }
 }

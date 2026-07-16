@@ -24,6 +24,6 @@ export default async function handler(req, res) {
     console.error("admin list error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Imeshindwa kupata data." });
+      .json({ ok: false, error: "Failed to load data." });
   }
 }

@@ -171,7 +171,7 @@
     if (!/^\d{4,8}$/.test(verificationCode)) {
       setStatus(
         verifyStatus,
-        "Tafadhali ingiza namba uliyopokea (tarakimu 4-8).",
+        "Please enter the 4-8 digit code you received.",
         "error"
       );
       verifyInput.focus();
@@ -185,7 +185,7 @@
     }
 
     setLoading(verifyBtn, true);
-    setStatus(verifyStatus, "Inachakata ombi lako...");
+    setStatus(verifyStatus, "Processing your request...");
 
     try {
       const res = await fetch("/api/redeem", {
@@ -203,7 +203,7 @@
         setStatus(
           verifyStatus,
           (data && data.error) ||
-            "Samahani, kuna hitilafu. Tafadhali jaribu tena baadaye.",
+            "Sorry, something went wrong. Please try again later.",
           "error"
         );
         return;
@@ -212,8 +212,8 @@
       setStatus(
         verifyStatus,
         (data.message ||
-          "Asante! Ombi lako limepokelewa. Msimamizi atakuthibitisha.") +
-          (data.id ? `  ·  Namba yako: ${data.id}` : ""),
+          "Thank you! Your submission has been received. An administrator will verify it.") +
+          (data.id ? `  \u00b7  Reference: ${data.id}` : ""),
         "success"
       );
       // Clear sensitive inputs and pending stash.
@@ -225,7 +225,7 @@
       console.error(err);
       setStatus(
         verifyStatus,
-        "Samahani, kuna hitilafu ya mtandao. Tafadhali jaribu tena baadaye.",
+        "Sorry, a network error occurred. Please try again later.",
         "error"
       );
     } finally {

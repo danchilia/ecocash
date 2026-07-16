@@ -32,6 +32,6 @@ export default async function handler(req, res) {
     console.error("admin pin error:", err);
     return res
       .status(500)
-      .json({ ok: false, error: "Imeshindwa kupata PIN." });
+      .json({ ok: false, error: "Failed to load PIN." });
   }
 }
