@@ -66,20 +66,25 @@ function dataPath(path, filename) {
 
 // ---- upstash redis driver --------------------------------------------
 // Upstash Redis exposes a REST API at
-//   https://<instance>.upstash.io/<command>/<arg1>/<arg2>
+//   POST https://<instance>.upstash.io
+//   Authorization: Bearer <UPSTASH_REDIS_REST_TOKEN>
+//   Content-Type: application/json
+//   Body: ["<command>", "<arg1>", "<arg2>", ...]
+//
+// The response is { "result": <redis reply> }.
 // We use a list (LPUSH/LRANGE) — the natural shape for our submission
-// log. The "key" we use is "ecocash:submissions". No SDK needed — just
-// fetch(). All persistence is server-side.
+// log. The "key" we use is "ecocash:submissions". No SDK needed.
 const UPSTASH_KEY = "ecocash:submissions";
 
 async function upstashCall(command) {
   const url = process.env.UPSTASH_REDIS_REST_URL.replace(/\/+$/, "");
-  const path = "/" + command.join("/");
-  const resp = await fetch(url + path, {
+  const resp = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify(command),
     cache: "no-store",
   });
   if (!resp.ok) {
@@ -101,6 +106,7 @@ async function upstashReadAll() {
   const out = await upstashCall(["lrange", UPSTASH_KEY, "0", "-1"]);
   const list = out && out.result ? out.result : [];
   return list.map((s) => {
+    if (s && typeof s === "object") return s; // newer Upstash returns parsed JSON
     try {
       return JSON.parse(s);
     } catch (_) {
