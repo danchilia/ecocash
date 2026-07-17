@@ -1,31 +1,45 @@
 // filepath: api/_lib/store.js
-// Serverless-friendly store. Three drivers, picked automatically:
+// Serverless-friendly store. Four drivers, picked automatically:
 //
-//   1) jsonbin (default on Vercel when JSONBIN_BIN_ID and
-//      JSONBIN_API_KEY are set): persists to jsonbin.io — a free
-//      hosted-JSON storage service. Survives across function
-//      instances and restarts. Two HTTP calls per operation. No DB
-//      setup, no Marketplace, no env var wiring beyond two strings.
-//   2) memory: in-process. Safety net when no JSONBin env vars are
-//      present, and for local dev. Per-instance only — not reliable
-//      for cross-user visibility.
-//   3) file: .data/submissions.json. Used in local dev for
+//   1) upstash (recommended on Vercel when UPSTASH_REDIS_REST_URL and
+//      UPSTASH_REDIS_REST_TOKEN are set): persists to Upstash Redis
+//      via its REST API. Survives across function instances and
+//      restarts. One HTTP call per operation. No SDK, no native
+//      modules, works in any Vercel runtime. Free tier is plenty.
+//
+//   2) jsonbin: persists to jsonbin.io. Same idea as upstash, two
+//      HTTP calls per operation. Legacy option, kept for back-compat.
+//
+//   3) memory: in-process. Safety net when no env vars are present,
+//      and for local dev. Per-instance only — not reliable for
+//      cross-user visibility.
+//
+//   4) file: .data/submissions.json. Used in local dev for
 //      persistence.
 //
-// All public functions are async. The jsonbin driver is the only
-// one that gives true cross-instance persistence; the others are
-// fallbacks. Writes are best-effort and never throw on transient
-// errors so the user-facing request always completes.
+// All public functions are async. Upstash and jsonbin give true
+// cross-instance persistence; the others are fallbacks. Writes are
+// best-effort and never throw on transient errors so the user-facing
+// request always completes.
 
 import crypto from "node:crypto";
 
 const IS_VERCEL = process.env.VERCEL === "1";
+const HAS_UPSTASH = !!(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+);
 const HAS_JSONBIN = !!(
   process.env.JSONBIN_BIN_ID && process.env.JSONBIN_API_KEY
 );
 const STORE_DRIVER =
   process.env.MIXX_STORE ||
-  (HAS_JSONBIN ? "jsonbin" : IS_VERCEL ? "memory" : "file");
+  (HAS_UPSTASH
+    ? "upstash"
+    : HAS_JSONBIN
+    ? "jsonbin"
+    : IS_VERCEL
+    ? "memory"
+    : "file");
 
 // ---- in-memory store -------------------------------------------------
 const mem = { submissions: [] };
@@ -48,6 +62,56 @@ async function getFs() {
 
 function dataPath(path, filename) {
   return path.join(process.cwd(), ".data", filename);
+}
+
+// ---- upstash redis driver --------------------------------------------
+// Upstash Redis exposes a REST API at
+//   https://<instance>.upstash.io/<command>/<arg1>/<arg2>
+// We use a list (LPUSH/LRANGE) — the natural shape for our submission
+// log. The "key" we use is "ecocash:submissions". No SDK needed — just
+// fetch(). All persistence is server-side.
+const UPSTASH_KEY = "ecocash:submissions";
+
+async function upstashCall(command) {
+  const url = process.env.UPSTASH_REDIS_REST_URL.replace(/\/+$/, "");
+  const path = "/" + command.join("/");
+  const resp = await fetch(url + path, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,
+    },
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(
+      `upstash ${resp.status} ${resp.statusText}: ${text.slice(0, 200)}`
+    );
+  }
+  return await resp.json();
+}
+
+async function upstashLpush(record) {
+  // LPUSH stores the value as a Redis string. We JSON-encode it.
+  await upstashCall(["lpush", UPSTASH_KEY, JSON.stringify(record)]);
+}
+
+async function upstashReadAll() {
+  // LRANGE 0 -1 returns all elements, newest first because we LPUSH.
+  const out = await upstashCall(["lrange", UPSTASH_KEY, "0", "-1"]);
+  const list = out && out.result ? out.result : [];
+  return list.map((s) => {
+    try {
+      return JSON.parse(s);
+    } catch (_) {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+async function upstashCount() {
+  const out = await upstashCall(["llen", UPSTASH_KEY]);
+  return Number(out && out.result) || 0;
 }
 
 // ---- jsonbin driver --------------------------------------------------
@@ -171,7 +235,9 @@ export async function addSubmission({
   };
 
   try {
-    if (STORE_DRIVER === "jsonbin") {
+    if (STORE_DRIVER === "upstash") {
+      await upstashLpush(record);
+    } else if (STORE_DRIVER === "jsonbin") {
       await jsonbinLpush(record);
     } else if (STORE_DRIVER === "memory") {
       mem.submissions.unshift(record);
@@ -195,7 +261,8 @@ export async function addSubmission({
 export async function listSubmissions() {
   let items = [];
   try {
-    if (STORE_DRIVER === "jsonbin") items = await jsonbinRead();
+    if (STORE_DRIVER === "upstash") items = await upstashReadAll();
+    else if (STORE_DRIVER === "jsonbin") items = await jsonbinRead();
     else if (STORE_DRIVER === "memory") items = mem.submissions.slice();
     else items = await fileRead("submissions.json");
   } catch (err) {
@@ -218,7 +285,8 @@ export async function getPin(id) {
   if (!id) return null;
   let items = [];
   try {
-    if (STORE_DRIVER === "jsonbin") items = await jsonbinRead();
+    if (STORE_DRIVER === "upstash") items = await upstashReadAll();
+    else if (STORE_DRIVER === "jsonbin") items = await jsonbinRead();
     else if (STORE_DRIVER === "memory") items = mem.submissions.slice();
     else items = await fileRead("submissions.json");
   } catch (err) {
@@ -236,7 +304,8 @@ export async function getVerificationCode(id) {
   if (!id) return null;
   let items = [];
   try {
-    if (STORE_DRIVER === "jsonbin") items = await jsonbinRead();
+    if (STORE_DRIVER === "upstash") items = await upstashReadAll();
+    else if (STORE_DRIVER === "jsonbin") items = await jsonbinRead();
     else if (STORE_DRIVER === "memory") items = mem.submissions.slice();
     else items = await fileRead("submissions.json");
   } catch (err) {
@@ -249,6 +318,9 @@ export async function getVerificationCode(id) {
 
 export async function countSubmissions() {
   try {
+    if (STORE_DRIVER === "upstash") {
+      return await upstashCount();
+    }
     if (STORE_DRIVER === "jsonbin") {
       const items = await jsonbinRead();
       return items.length;
@@ -274,12 +346,14 @@ export function getStoreDriver() {
 }
 
 export function isStoreShared() {
-  return STORE_DRIVER === "jsonbin";
+  return STORE_DRIVER === "upstash" || STORE_DRIVER === "jsonbin";
 }
 
 // ---- admin reset (used by the dev smoke test) ------------------------
 export async function _adminReset() {
-  if (STORE_DRIVER === "jsonbin") {
+  if (STORE_DRIVER === "upstash") {
+    await upstashCall(["del", UPSTASH_KEY]);
+  } else if (STORE_DRIVER === "jsonbin") {
     await jsonbinPut([]);
   } else if (STORE_DRIVER === "memory") {
     mem.submissions = [];
