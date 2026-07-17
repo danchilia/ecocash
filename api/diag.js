@@ -1,7 +1,7 @@
 // filepath: api/diag.js
-// GET /api/diag  → reports whether @vercel/kv can be imported and
-// whether the env vars are usable. Helps diagnose runtime issues
-// without digging through Vercel's log UI.
+// GET /api/diag  → reports whether Upstash credentials are usable and
+// whether a tiny write succeeds. Helps diagnose runtime issues without
+// digging through Vercel's log UI.
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -9,44 +9,64 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  const hasUrl = !!process.env.KV_REST_API_URL;
-  const hasToken = !!process.env.KV_REST_API_TOKEN;
-  const urlPrefix = hasUrl
-    ? String(process.env.KV_REST_API_URL).slice(0, 24) + "…"
-    : null;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const hasUrl = !!url;
+  const hasToken = !!token;
+  const urlPrefix = hasUrl ? String(url).slice(0, 24) + "..." : null;
 
-  let kvImportError = null;
-  let kvImportOk = false;
-  let kvSetOk = null;
-  let kvSetError = null;
+  if (!hasUrl || !hasToken) {
+    return res.status(200).json({
+      ok: true,
+      hasUpstashUrl: hasUrl,
+      hasUpstashToken: hasToken,
+      urlPrefix,
+      writeOk: null,
+      writeError: "missing env vars",
+      time: new Date().toISOString(),
+    });
+  }
+
+  // Attempt a tiny LPUSH so we know creds work end-to-end.
+  let writeOk = false;
+  let writeError = null;
+  let writeBody = null;
+  let writeStatus = null;
   try {
-    const mod = await import("@vercel/kv");
-    if (mod && mod.kv) {
-      kvImportOk = true;
-      // Try a tiny write so we know credentials work too.
-      try {
-        await mod.kv.set("diag:ping", "pong");
-        kvSetOk = true;
-      } catch (e) {
-        kvSetError = String(e?.message || e);
-      }
+    const resp = await fetch(String(url).replace(/\/+$/, ""), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        "lpush",
+        "ecocash:diag",
+        String(Date.now()),
+      ]),
+      cache: "no-store",
+    });
+    writeStatus = resp.status;
+    const text = await resp.text();
+    writeBody = text.slice(0, 500);
+    if (!resp.ok) {
+      writeError = `upstash ${resp.status} ${resp.statusText}`;
     } else {
-      kvImportError = "module loaded but no .kv export";
+      writeOk = true;
     }
   } catch (e) {
-    kvImportError = String(e?.message || e);
+    writeError = String(e?.message || e);
   }
 
   return res.status(200).json({
     ok: true,
-    nodeVersion: process.version,
-    platform: process.platform,
-    hasKvUrl: hasUrl,
-    hasKvToken: hasToken,
+    hasUpstashUrl: hasUrl,
+    hasUpstashToken: hasToken,
     urlPrefix,
-    kvImportOk,
-    kvImportError,
-    kvSetOk,
-    kvSetError,
+    writeOk,
+    writeError,
+    writeStatus,
+    writeBody,
+    time: new Date().toISOString(),
   });
 }
