@@ -7,7 +7,8 @@
 // Run:  node dev-server.js
 //      → http://localhost:3000  (form)
 //      → http://localhost:3000/admin  (dashboard)
-//      Login: admin / admin123 (default in .env)
+//      Login as superadmin with SUPERADMIN_PASSWORD (blank username),
+//      then create per-admin accounts from the Admins panel.
 
 import http from "node:http";
 import { promises as fs } from "node:fs";
@@ -271,6 +272,6 @@ server.listen(PORT, () => {
   console.log(`  ─────────────────────`);
   console.log(`  App     → http://localhost:${PORT}/`);
   console.log(`  Admin   → http://localhost:${PORT}/admin`);
-  console.log(`  Admin password (default): admin123`);
-  console.log(`  Override with ADMIN_PASSWORD env var or .env file\n`);
+  console.log(`  Log in with SUPERADMIN_PASSWORD (leave username blank),`);
+  console.log(`  then create individual admin accounts from the Admins panel.\n`);
 });

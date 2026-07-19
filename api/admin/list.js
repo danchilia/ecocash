@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  if (!isAuthenticated(req)) {
+  if (!(await isAuthenticated(req))) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 

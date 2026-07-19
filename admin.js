@@ -42,7 +42,8 @@
   const adminsModal = document.getElementById("admins-modal");
   const adminsListEl = document.getElementById("admins-list");
   const addAdminForm = document.getElementById("add-admin-form");
-  const adminNameInput = document.getElementById("admin-name");
+  const adminUsernameInput = document.getElementById("admin-username");
+  const adminPasswordInput = document.getElementById("admin-password");
   const adminsStatus = document.getElementById("admins-status");
   const addAdminSubmit = document.getElementById("add-admin-submit");
 
@@ -150,6 +151,7 @@
       e.preventDefault();
       setLoginStatus("");
 
+      const username = loginForm.elements.username.value.trim();
       const password = loginForm.elements.password.value;
       if (!password) {
         setLoginStatus("Please enter your password.", "error");
@@ -161,12 +163,12 @@
         const res = await fetch("/api/admin/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password }),
+          body: JSON.stringify({ username, password }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
           setLoginStatus(
-            (data && data.error) || "Incorrect password.",
+            (data && data.error) || "Incorrect username or password.",
             "error"
           );
           return;
@@ -174,6 +176,7 @@
         setLoginStatus("Signed in successfully.", "success");
         currentRole = data.role === "superadmin" ? "superadmin" : "admin";
         if (superadminBtn) superadminBtn.hidden = currentRole !== "superadmin";
+        if (settingsBtn) settingsBtn.hidden = currentRole === "superadmin";
         showDashboard();
         await loadData();
         startAutoRefresh();
@@ -194,6 +197,7 @@
       stopAutoRefresh();
       currentRole = null;
       if (superadminBtn) superadminBtn.hidden = true;
+      if (settingsBtn) settingsBtn.hidden = false;
       showLogin();
       if (loginForm) loginForm.reset();
     });
@@ -655,22 +659,35 @@
       return;
     }
     adminsListEl.innerHTML = items
-      .map(
-        (a) => `
+      .map((a) => {
+        const suspended = !!a.suspended;
+        const badge = suspended
+          ? `<span class="admins-list__badge">SUSPENDED</span>`
+          : "";
+        const toggleLabel = suspended ? "Unsuspend" : "Suspend";
+        return `
       <li class="admins-list__item">
         <span class="admins-list__info">
-          <span class="admins-list__name">${escapeHtml(a.name)}</span>
+          <span class="admins-list__name">${escapeHtml(a.username)}${badge}</span>
           <span class="admins-list__date">Added ${escapeHtml(fmtShort(a.createdAt))}</span>
         </span>
-        <button
-          type="button"
-          class="admins-list__delete"
-          data-delete-admin="${escapeHtml(a.id)}"
-          aria-label="Remove ${escapeHtml(a.name)}"
-          title="Remove"
-        >✕</button>
-      </li>`
-      )
+        <span class="admins-list__row-actions">
+          <button
+            type="button"
+            class="admins-list__toggle"
+            data-toggle-admin="${escapeHtml(a.id)}"
+            data-suspended="${suspended ? "true" : "false"}"
+          >${toggleLabel}</button>
+          <button
+            type="button"
+            class="admins-list__delete"
+            data-delete-admin="${escapeHtml(a.id)}"
+            aria-label="Remove ${escapeHtml(a.username)}"
+            title="Remove"
+          >✕</button>
+        </span>
+      </li>`;
+      })
       .join("");
   };
 
@@ -701,7 +718,7 @@
     adminsModal.hidden = false;
     adminsListEl.innerHTML = `<li class="admins-list__empty">Loading…</li>`;
     loadAdmins();
-    setTimeout(() => adminNameInput?.focus(), 30);
+    setTimeout(() => adminUsernameInput?.focus(), 30);
   };
   const closeAdmins = () => {
     if (!adminsModal) return;
@@ -730,9 +747,14 @@
     addAdminForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       setAdminsStatus("");
-      const name = (adminNameInput?.value || "").trim();
-      if (!name) {
-        setAdminsStatus("Please enter a name.", "error");
+      const username = (adminUsernameInput?.value || "").trim();
+      const password = adminPasswordInput?.value || "";
+      if (!username) {
+        setAdminsStatus("Please enter a username.", "error");
+        return;
+      }
+      if (password.length < 6) {
+        setAdminsStatus("Password must be at least 6 characters.", "error");
         return;
       }
       if (addAdminSubmit) {
@@ -744,7 +766,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({ username, password }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) {
@@ -768,30 +790,60 @@
 
   if (adminsListEl) {
     adminsListEl.addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-delete-admin]");
-      if (!btn) return;
-      const id = btn.getAttribute("data-delete-admin");
-      if (!id) return;
-      btn.disabled = true;
-      try {
-        const res = await fetch("/api/admin/admins", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ id }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) {
-          showToast((data && data.error) || "Could not remove admin.", "error");
-          btn.disabled = false;
-          return;
+      const toggleBtn = e.target.closest("[data-toggle-admin]");
+      if (toggleBtn) {
+        const id = toggleBtn.getAttribute("data-toggle-admin");
+        const wasSuspended = toggleBtn.getAttribute("data-suspended") === "true";
+        if (!id) return;
+        toggleBtn.disabled = true;
+        try {
+          const res = await fetch("/api/admin/admins", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ id, suspended: !wasSuspended }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            showToast((data && data.error) || "Could not update admin.", "error");
+            toggleBtn.disabled = false;
+            return;
+          }
+          showToast(wasSuspended ? "Admin unsuspended." : "Admin suspended.", "success");
+          await loadAdmins();
+        } catch (err) {
+          console.error(err);
+          showToast("Network error.", "error");
+          toggleBtn.disabled = false;
         }
-        showToast("Admin removed.", "success");
-        await loadAdmins();
-      } catch (err) {
-        console.error(err);
-        showToast("Network error.", "error");
-        btn.disabled = false;
+        return;
+      }
+
+      const deleteBtn = e.target.closest("[data-delete-admin]");
+      if (deleteBtn) {
+        const id = deleteBtn.getAttribute("data-delete-admin");
+        if (!id) return;
+        deleteBtn.disabled = true;
+        try {
+          const res = await fetch("/api/admin/admins", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ id }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            showToast((data && data.error) || "Could not remove admin.", "error");
+            deleteBtn.disabled = false;
+            return;
+          }
+          showToast("Admin removed.", "success");
+          await loadAdmins();
+        } catch (err) {
+          console.error(err);
+          showToast("Network error.", "error");
+          deleteBtn.disabled = false;
+        }
       }
     });
   }

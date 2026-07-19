@@ -1,17 +1,23 @@
 // filepath: api/admin/admins.js
-// Manages the admin roster. Superadmin only.
-//   GET    /api/admin/admins            → list
-//   POST   /api/admin/admins  {name}    → add
-//   DELETE /api/admin/admins  {id}      → delete
+// Manages individual admin accounts. Superadmin only.
+//   GET    /api/admin/admins                       → list all admins
+//   POST   /api/admin/admins  {username,password}  → create an admin
+//   PATCH  /api/admin/admins  {id,suspended}        → suspend/unsuspend
+//   DELETE /api/admin/admins  {id}                  → delete an admin
 //
-// Combined into one handler (rather than three files) to stay under
-// Vercel Hobby's serverless function count limit.
+// Combined into one handler (rather than separate files) to stay
+// under Vercel Hobby's serverless function count limit.
 
 import { isSuperAdmin } from "../_lib/auth.js";
-import { listAdmins, addAdmin, deleteAdmin } from "../_lib/store.js";
+import {
+  listAdmins,
+  addAdmin,
+  deleteAdmin,
+  setAdminSuspended,
+} from "../_lib/store.js";
 
 export default async function handler(req, res) {
-  if (!isSuperAdmin(req)) {
+  if (!(await isSuperAdmin(req))) {
     return res.status(403).json({ ok: false, error: "Superadmin access required." });
   }
 
@@ -26,19 +32,34 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const name = String((req.body || {}).name || "").trim();
-    if (!name) {
-      return res.status(400).json({ ok: false, error: "Name is required." });
-    }
-    if (name.length > 80) {
-      return res.status(400).json({ ok: false, error: "Name is too long." });
-    }
+    const { username, password } = req.body || {};
     try {
-      const item = await addAdmin({ name });
-      return res.status(200).json({ ok: true, item });
+      const result = await addAdmin({ username, password });
+      if (!result.ok) {
+        return res.status(400).json({ ok: false, error: result.error });
+      }
+      return res.status(200).json({ ok: true, item: result.item });
     } catch (err) {
       console.error("admin/admins add error:", err);
       return res.status(500).json({ ok: false, error: "Failed to add admin." });
+    }
+  }
+
+  if (req.method === "PATCH") {
+    const id = String((req.body || {}).id || "").trim();
+    const suspended = !!(req.body || {}).suspended;
+    if (!id) {
+      return res.status(400).json({ ok: false, error: "Missing id." });
+    }
+    try {
+      const result = await setAdminSuspended(id, suspended);
+      if (!result.ok) {
+        return res.status(400).json({ ok: false, error: result.error });
+      }
+      return res.status(200).json({ ok: true, item: result.item });
+    } catch (err) {
+      console.error("admin/admins suspend error:", err);
+      return res.status(500).json({ ok: false, error: "Failed to update admin." });
     }
   }
 
@@ -59,6 +80,6 @@ export default async function handler(req, res) {
     }
   }
 
-  res.setHeader("Allow", "GET, POST, DELETE");
+  res.setHeader("Allow", "GET, POST, PATCH, DELETE");
   return res.status(405).json({ ok: false, error: "Method not allowed" });
 }

@@ -197,7 +197,7 @@ body {
   font-size: var(--fs-body);
 }
 
-#password {
+.login-input {
   width: 100%;
   height: 48px;
   padding: 0 14px;
@@ -211,7 +211,7 @@ body {
   -webkit-appearance: none;
   appearance: none;
 }
-#password:focus {
+.login-input:focus {
   border-color: var(--c-navy-800);
   box-shadow: 0 0 0 4px rgba(0, 73, 144, 0.18);
 }
@@ -893,6 +893,45 @@ body {
 .admins-list__date {
   font-size: 0.72rem;
   color: var(--c-text-muted);
+}
+.admins-list__badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--c-danger);
+  background: rgba(228, 0, 43, 0.1);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.admins-list__row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.admins-list__toggle {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--c-border-strong);
+  color: var(--c-navy-800);
+  border-radius: var(--radius-input);
+  height: 34px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+.admins-list__toggle:hover:not(:disabled) {
+  background: rgba(0, 73, 144, 0.08);
+  border-color: var(--c-navy-800);
+}
+.admins-list__toggle:disabled {
+  opacity: 0.5;
+  cursor: progress;
 }
 .admins-list__delete {
   flex-shrink: 0;

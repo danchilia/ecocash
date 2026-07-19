@@ -19,8 +19,19 @@
         </div>
         <h1 class="login-title">Admin Login</h1>
         <p class="login-sub">
-          Enter your password to view all user submissions.
+          Enter your username and password to view all user submissions.
+          Superadmin: leave username blank.
         </p>
+
+        <label class="visually-hidden" for="username">Username</label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          autocomplete="username"
+          placeholder="Username"
+          class="login-input"
+        />
 
         <label class="visually-hidden" for="password">Password</label>
         <input
@@ -29,6 +40,7 @@
           type="password"
           autocomplete="current-password"
           placeholder="Password"
+          class="login-input"
           required
         />
 
@@ -241,16 +253,29 @@
           </ul>
           <form id="add-admin-form" novalidate>
             <label class="field">
-              <span class="field__label">Admin name</span>
+              <span class="field__label">Username</span>
               <input
-                id="admin-name"
-                name="name"
+                id="admin-username"
+                name="username"
                 type="text"
                 autocomplete="off"
-                maxlength="80"
-                placeholder="e.g. Tendai M."
+                maxlength="40"
+                placeholder="e.g. tendai"
                 required
               />
+            </label>
+            <label class="field">
+              <span class="field__label">Password</span>
+              <input
+                id="admin-password"
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="6"
+                placeholder="At least 6 characters"
+                required
+              />
+              <span class="field__hint">Share this with the admin directly — it isn't emailed or texted.</span>
             </label>
             <p id="admins-status" class="status" role="status" aria-live="polite"></p>
             <div class="modal__actions">

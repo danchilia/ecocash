@@ -1,11 +1,20 @@
 // filepath: api/_lib/auth.js
-// Tiny admin authentication. Cookie-based, server-side password check.
-// The password source is the ADMIN_PASSWORD env var (bootstrap) or a
-// PBKDF2 hash stored in .data/admin.json (set when the admin changes
-// the password from the dashboard). Do NOT commit real passwords.
+// Admin authentication. Cookie-based sessions with two roles:
+//
+//   - superadmin: authenticates with SUPERADMIN_PASSWORD (env var).
+//     Username is ignored for this path. Manages the admin roster.
+//   - admin: authenticates with a username + password checked against
+//     an individual account in the roster (see store.js).
+//
+// The cookie only carries "role:id" (HMAC-signed). For admin
+// sessions, every request re-fetches that admin's current record and
+// rejects the session if it was deleted or suspended in the
+// meantime — so "restrict" and "delete" take effect immediately, even
+// on a session that's already open, not just on the next login.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { checkPasswordAsync } from "./password.js";
+import { verifyPasswordHash } from "./password.js";
+import { getAdminByUsername, getAdminById } from "./store.js";
 
 const COOKIE_NAME = "mixx_admin";
 const SESSION_SECRET =
@@ -60,35 +69,64 @@ function isValidCookie(value) {
   }
 }
 
-function readRole(req) {
+function parseCookiePayload(req) {
   const cookie = readCookie(req, COOKIE_NAME);
   if (!isValidCookie(cookie)) return null;
   const idx = cookie.lastIndexOf(".");
-  const value = cookie.slice(0, idx);
-  if (value === "superadmin") return "superadmin";
-  if (value === "admin" || value === "ok") return "admin";
-  return null;
+  const value = cookie.slice(0, idx); // "role:id"
+  const sepIdx = value.indexOf(":");
+  if (sepIdx < 0) return null;
+  const role = value.slice(0, sepIdx);
+  const id = value.slice(sepIdx + 1);
+  if (role !== "admin" && role !== "superadmin") return null;
+  return { role, id: id === "-" ? null : id };
 }
 
-export function isAuthenticated(req) {
-  return readRole(req) !== null;
+/**
+ * Resolve the current request's session, re-validating admin sessions
+ * against the live roster. Returns null when unauthenticated.
+ */
+export async function getSession(req) {
+  const payload = parseCookiePayload(req);
+  if (!payload) return null;
+  if (payload.role === "superadmin") {
+    return { role: "superadmin", id: null, username: null };
+  }
+  const record = await getAdminById(payload.id);
+  if (!record || record.suspended) return null;
+  return { role: "admin", id: record.id, username: record.username };
 }
 
-export function isSuperAdmin(req) {
-  return readRole(req) === "superadmin";
+export async function isAuthenticated(req) {
+  return (await getSession(req)) !== null;
 }
 
-export async function login(password) {
+export async function isSuperAdmin(req) {
+  const session = await getSession(req);
+  return !!session && session.role === "superadmin";
+}
+
+export async function login(username, password) {
   if (typeof password !== "string" || password.length === 0) return null;
+
   if (
     SUPERADMIN_PASSWORD &&
     constantTimeStringEqual(password, SUPERADMIN_PASSWORD)
   ) {
-    return { cookie: buildCookie("superadmin"), role: "superadmin" };
+    return { cookie: buildCookie("superadmin:-"), role: "superadmin", username: null };
   }
-  const ok = await checkPasswordAsync(password);
+
+  const uname = String(username || "").trim();
+  if (!uname) return null;
+  const record = await getAdminByUsername(uname);
+  if (!record || record.suspended) return null;
+  const ok = verifyPasswordHash(password, record.passwordHash);
   if (!ok) return null;
-  return { cookie: buildCookie("admin"), role: "admin" };
+  return {
+    cookie: buildCookie(`admin:${record.id}`),
+    role: "admin",
+    username: record.username,
+  };
 }
 
 export function logout() {

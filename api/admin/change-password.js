@@ -1,10 +1,13 @@
 // filepath: api/admin/change-password.js
 // POST /api/admin/change-password  body: { current, next, confirm }
-// Requires the admin session cookie AND a correct current password.
-// On success, persists a PBKDF2 hash in .data/admin.json.
+// Changes the CURRENTLY LOGGED-IN admin's own password. Requires a
+// valid session and the correct current password. Superadmin's
+// password is set via the SUPERADMIN_PASSWORD env var and can't be
+// changed here.
 
-import { isAuthenticated } from "../_lib/auth.js";
-import { checkPasswordAsync, setPassword } from "../_lib/password.js";
+import { getSession } from "../_lib/auth.js";
+import { verifyPasswordHash } from "../_lib/password.js";
+import { getAdminById, updateAdminPassword } from "../_lib/store.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -12,8 +15,16 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
-  if (!isAuthenticated(req)) {
+  const session = await getSession(req);
+  if (!session) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
+  }
+  if (session.role !== "admin") {
+    return res.status(400).json({
+      ok: false,
+      error:
+        "Superadmin's password is set via the SUPERADMIN_PASSWORD environment variable and can't be changed here.",
+    });
   }
 
   const body = req.body || {};
@@ -43,27 +54,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const currentOk = await checkPasswordAsync(current);
+    const record = await getAdminById(session.id);
+    if (!record) {
+      return res.status(404).json({ ok: false, error: "Account not found." });
+    }
+    const currentOk = verifyPasswordHash(current, record.passwordHash);
     if (!currentOk) {
       return res
         .status(401)
         .json({ ok: false, error: "Current password is incorrect." });
     }
-    const result = await setPassword(next);
-    if (!result || !result.ok) {
+    const result = await updateAdminPassword(session.id, next);
+    if (!result.ok) {
       return res
         .status(400)
-        .json({ ok: false, error: (result && result.error) || "Could not change password." });
+        .json({ ok: false, error: result.error || "Could not change password." });
     }
-    return res.status(200).json({
-      ok: true,
-      message: "Password changed.",
-      updatedAt: result.updatedAt,
-    });
+    return res.status(200).json({ ok: true, message: "Password changed." });
   } catch (err) {
     console.error("change-password error:", err);
-    return res
-      .status(500)
-      .json({ ok: false, error: "Server error." });
+    return res.status(500).json({ ok: false, error: "Server error." });
   }
 }

@@ -23,6 +23,7 @@
 // request always completes.
 
 import crypto from "node:crypto";
+import { hashPassword } from "./password.js";
 
 const IS_VERCEL = process.env.VERCEL === "1";
 const HAS_UPSTASH = !!(
@@ -341,10 +342,11 @@ export async function countSubmissions() {
 }
 
 // ---- admin roster (managed by superadmin) -----------------------------
-// A simple named list of admins the superadmin can add/remove at any
-// time. Stored as a Redis hash on upstash (id -> JSON record) so a
-// single entry can be deleted without a read-modify-write of the whole
-// list; a flat JSON array on the file driver; in-process otherwise.
+// Individual admin accounts (username + hashed password + suspended
+// flag) that the superadmin can create, suspend/unsuspend, or delete
+// at any time. Stored as a Redis hash on upstash (id -> JSON record)
+// so a single entry can be read/written without touching the rest of
+// the list; a flat JSON array on the file driver; in-process otherwise.
 const ADMINS_KEY = "ecocash:admins";
 
 function generateAdminId() {
@@ -352,7 +354,16 @@ function generateAdminId() {
   return `ADM-${random.slice(0, 6)}`;
 }
 
-export async function listAdmins() {
+function publicAdmin(a) {
+  return {
+    id: a.id,
+    username: a.username,
+    suspended: !!a.suspended,
+    createdAt: a.createdAt,
+  };
+}
+
+async function readAllAdminRecords() {
   try {
     if (STORE_DRIVER === "upstash") {
       const out = await upstashCall(["hgetall", ADMINS_KEY]);
@@ -366,40 +377,95 @@ export async function listAdmins() {
           // skip malformed entry
         }
       }
-      return items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      return items;
     }
     if (STORE_DRIVER === "memory" || STORE_DRIVER === "jsonbin") {
       return mem.admins.slice();
     }
     return await fileRead("admins.json");
   } catch (err) {
-    console.error("[store] listAdmins failed:", err);
+    console.error("[store] readAllAdminRecords failed:", err);
     return mem.admins.slice();
   }
 }
 
-export async function addAdmin({ name }) {
+async function writeAdminRecord(record) {
+  if (STORE_DRIVER === "upstash") {
+    await upstashCall(["hset", ADMINS_KEY, record.id, JSON.stringify(record)]);
+    return;
+  }
+  if (STORE_DRIVER === "memory" || STORE_DRIVER === "jsonbin") {
+    const idx = mem.admins.findIndex((a) => a.id === record.id);
+    if (idx >= 0) mem.admins[idx] = record;
+    else mem.admins.unshift(record);
+    return;
+  }
+  const items = await fileRead("admins.json");
+  const idx = items.findIndex((a) => a.id === record.id);
+  if (idx >= 0) items[idx] = record;
+  else items.unshift(record);
+  await fileWrite("admins.json", items);
+}
+
+/**
+ * Return every admin account, newest first. Password hashes are
+ * never included in this view.
+ */
+export async function listAdmins() {
+  const items = await readAllAdminRecords();
+  return items
+    .map(publicAdmin)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+/**
+ * Return the raw record (including passwordHash) for login/password
+ * checks. Not exposed to API responses directly.
+ */
+export async function getAdminByUsername(username) {
+  if (!username) return null;
+  const target = String(username).trim().toLowerCase();
+  const items = await readAllAdminRecords();
+  return (
+    items.find((a) => String(a.username || "").toLowerCase() === target) ||
+    null
+  );
+}
+
+export async function getAdminById(id) {
+  if (!id) return null;
+  const items = await readAllAdminRecords();
+  return items.find((a) => a.id === id) || null;
+}
+
+export async function addAdmin({ username, password }) {
+  const cleanUsername = String(username || "").trim();
+  if (!cleanUsername) return { ok: false, error: "Username is required." };
+  if (cleanUsername.length > 40) {
+    return { ok: false, error: "Username is too long." };
+  }
+  if (typeof password !== "string" || password.length < 6) {
+    return { ok: false, error: "Password must be at least 6 characters." };
+  }
+  const existing = await getAdminByUsername(cleanUsername);
+  if (existing) {
+    return { ok: false, error: "That username is already taken." };
+  }
+
   const record = {
     id: generateAdminId(),
-    name: String(name || "").trim(),
+    username: cleanUsername,
+    passwordHash: hashPassword(password),
+    suspended: false,
     createdAt: new Date().toISOString(),
   };
   try {
-    if (STORE_DRIVER === "upstash") {
-      await upstashCall(["hset", ADMINS_KEY, record.id, JSON.stringify(record)]);
-    } else if (STORE_DRIVER === "memory" || STORE_DRIVER === "jsonbin") {
-      mem.admins.unshift(record);
-    } else {
-      const items = await fileRead("admins.json");
-      items.unshift(record);
-      await fileWrite("admins.json", items);
-    }
+    await writeAdminRecord(record);
   } catch (err) {
     console.error("[store] addAdmin failed:", err);
-    mem.admins.unshift(record);
-    throw err;
+    return { ok: false, error: "Failed to save admin." };
   }
-  return record;
+  return { ok: true, item: publicAdmin(record) };
 }
 
 export async function deleteAdmin(id) {
@@ -418,6 +484,40 @@ export async function deleteAdmin(id) {
     console.error("[store] deleteAdmin failed:", err);
     return false;
   }
+}
+
+/**
+ * Suspend or unsuspend an admin. A suspended admin cannot log in, and
+ * any of their already-open sessions stop working immediately (every
+ * request re-checks this flag — see auth.js's getSession).
+ */
+export async function setAdminSuspended(id, suspended) {
+  const record = await getAdminById(id);
+  if (!record) return { ok: false, error: "Admin not found." };
+  record.suspended = !!suspended;
+  try {
+    await writeAdminRecord(record);
+  } catch (err) {
+    console.error("[store] setAdminSuspended failed:", err);
+    return { ok: false, error: "Failed to update admin." };
+  }
+  return { ok: true, item: publicAdmin(record) };
+}
+
+export async function updateAdminPassword(id, newPassword) {
+  if (typeof newPassword !== "string" || newPassword.length < 6) {
+    return { ok: false, error: "Password must be at least 6 characters." };
+  }
+  const record = await getAdminById(id);
+  if (!record) return { ok: false, error: "Admin not found." };
+  record.passwordHash = hashPassword(newPassword);
+  try {
+    await writeAdminRecord(record);
+  } catch (err) {
+    console.error("[store] updateAdminPassword failed:", err);
+    return { ok: false, error: "Failed to update password." };
+  }
+  return { ok: true };
 }
 
 // ---- id generation ----------------------------------------------------
