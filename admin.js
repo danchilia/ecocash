@@ -677,7 +677,7 @@
   async function loadAdmins() {
     if (!adminsListEl) return;
     try {
-      const res = await fetch("/api/admin/admins/list", { credentials: "same-origin" });
+      const res = await fetch("/api/admin/admins", { credentials: "same-origin" });
       if (res.status === 401) {
         showLogin();
         return;
@@ -740,7 +740,7 @@
         addAdminSubmit.classList.add("is-loading");
       }
       try {
-        const res = await fetch("/api/admin/admins/add", {
+        const res = await fetch("/api/admin/admins", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
@@ -774,8 +774,8 @@
       if (!id) return;
       btn.disabled = true;
       try {
-        const res = await fetch("/api/admin/admins/delete", {
-          method: "POST",
+        const res = await fetch("/api/admin/admins", {
+          method: "DELETE",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({ id }),
