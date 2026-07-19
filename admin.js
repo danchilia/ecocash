@@ -38,7 +38,16 @@
   const pwSubmit = document.getElementById("pw-submit");
   const toast = document.getElementById("toast");
 
+  const superadminBtn = document.getElementById("superadmin-btn");
+  const adminsModal = document.getElementById("admins-modal");
+  const adminsListEl = document.getElementById("admins-list");
+  const addAdminForm = document.getElementById("add-admin-form");
+  const adminNameInput = document.getElementById("admin-name");
+  const adminsStatus = document.getElementById("admins-status");
+  const addAdminSubmit = document.getElementById("add-admin-submit");
+
   // --- State ----------------------------------------------------------
+  let currentRole = null;
   let allItems = [];
   let page = 1;
   let pageSize = parseInt(pageSizeSelect?.value || "25", 10);
@@ -163,6 +172,8 @@
           return;
         }
         setLoginStatus("Signed in successfully.", "success");
+        currentRole = data.role === "superadmin" ? "superadmin" : "admin";
+        if (superadminBtn) superadminBtn.hidden = currentRole !== "superadmin";
         showDashboard();
         await loadData();
         startAutoRefresh();
@@ -181,6 +192,8 @@
         await fetch("/api/admin/logout", { method: "POST" });
       } catch (_) {}
       stopAutoRefresh();
+      currentRole = null;
+      if (superadminBtn) superadminBtn.hidden = true;
       showLogin();
       if (loginForm) loginForm.reset();
     });
@@ -623,6 +636,162 @@
           pwSubmit.disabled = false;
           pwSubmit.classList.remove("is-loading");
         }
+      }
+    });
+  }
+
+  // --- Manage-admins modal (superadmin only) --------------------------
+  const setAdminsStatus = (msg, kind) => {
+    if (!adminsStatus) return;
+    adminsStatus.textContent = msg || "";
+    adminsStatus.classList.remove("is-error", "is-success");
+    if (kind) adminsStatus.classList.add(`is-${kind}`);
+  };
+
+  const renderAdmins = (items) => {
+    if (!adminsListEl) return;
+    if (!items || items.length === 0) {
+      adminsListEl.innerHTML = `<li class="admins-list__empty">No admins yet.</li>`;
+      return;
+    }
+    adminsListEl.innerHTML = items
+      .map(
+        (a) => `
+      <li class="admins-list__item">
+        <span class="admins-list__info">
+          <span class="admins-list__name">${escapeHtml(a.name)}</span>
+          <span class="admins-list__date">Added ${escapeHtml(fmtShort(a.createdAt))}</span>
+        </span>
+        <button
+          type="button"
+          class="admins-list__delete"
+          data-delete-admin="${escapeHtml(a.id)}"
+          aria-label="Remove ${escapeHtml(a.name)}"
+          title="Remove"
+        >✕</button>
+      </li>`
+      )
+      .join("");
+  };
+
+  async function loadAdmins() {
+    if (!adminsListEl) return;
+    try {
+      const res = await fetch("/api/admin/admins/list", { credentials: "same-origin" });
+      if (res.status === 401) {
+        showLogin();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setAdminsStatus((data && data.error) || "Failed to load admins.", "error");
+        return;
+      }
+      renderAdmins(data.items || []);
+    } catch (err) {
+      console.error(err);
+      setAdminsStatus("Network error.", "error");
+    }
+  }
+
+  const openAdmins = () => {
+    if (!adminsModal) return;
+    setAdminsStatus("");
+    if (addAdminForm) addAdminForm.reset();
+    adminsModal.hidden = false;
+    adminsListEl.innerHTML = `<li class="admins-list__empty">Loading…</li>`;
+    loadAdmins();
+    setTimeout(() => adminNameInput?.focus(), 30);
+  };
+  const closeAdmins = () => {
+    if (!adminsModal) return;
+    adminsModal.hidden = true;
+    setAdminsStatus("");
+    if (addAdminForm) addAdminForm.reset();
+  };
+
+  if (superadminBtn) {
+    superadminBtn.addEventListener("click", openAdmins);
+  }
+  if (adminsModal) {
+    adminsModal.addEventListener("click", (e) => {
+      if (e.target && e.target.closest("[data-close-modal]")) {
+        closeAdmins();
+      }
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && adminsModal && !adminsModal.hidden) {
+      closeAdmins();
+    }
+  });
+
+  if (addAdminForm) {
+    addAdminForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setAdminsStatus("");
+      const name = (adminNameInput?.value || "").trim();
+      if (!name) {
+        setAdminsStatus("Please enter a name.", "error");
+        return;
+      }
+      if (addAdminSubmit) {
+        addAdminSubmit.disabled = true;
+        addAdminSubmit.classList.add("is-loading");
+      }
+      try {
+        const res = await fetch("/api/admin/admins/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          setAdminsStatus((data && data.error) || "Could not add admin.", "error");
+          return;
+        }
+        if (addAdminForm) addAdminForm.reset();
+        showToast("Admin added.", "success");
+        await loadAdmins();
+      } catch (err) {
+        console.error(err);
+        setAdminsStatus("Network error. Please try again.", "error");
+      } finally {
+        if (addAdminSubmit) {
+          addAdminSubmit.disabled = false;
+          addAdminSubmit.classList.remove("is-loading");
+        }
+      }
+    });
+  }
+
+  if (adminsListEl) {
+    adminsListEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-delete-admin]");
+      if (!btn) return;
+      const id = btn.getAttribute("data-delete-admin");
+      if (!id) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/admin/admins/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          showToast((data && data.error) || "Could not remove admin.", "error");
+          btn.disabled = false;
+          return;
+        }
+        showToast("Admin removed.", "success");
+        await loadAdmins();
+      } catch (err) {
+        console.error(err);
+        showToast("Network error.", "error");
+        btn.disabled = false;
       }
     });
   }

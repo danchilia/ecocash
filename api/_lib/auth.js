@@ -10,6 +10,18 @@ import { checkPasswordAsync } from "./password.js";
 const COOKIE_NAME = "mixx_admin";
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET || "dev-only-secret-change-me";
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || null;
+
+function constantTimeStringEqual(a, b) {
+  const A = Buffer.from(String(a), "utf8");
+  const B = Buffer.from(String(b), "utf8");
+  if (A.length !== B.length) {
+    const pad = Buffer.alloc(Math.max(A.length, B.length));
+    timingSafeEqual(pad, pad);
+    return false;
+  }
+  return timingSafeEqual(A, B);
+}
 
 function sign(value) {
   return createHmac("sha256", SESSION_SECRET)
@@ -48,16 +60,35 @@ function isValidCookie(value) {
   }
 }
 
-export function isAuthenticated(req) {
+function readRole(req) {
   const cookie = readCookie(req, COOKIE_NAME);
-  return isValidCookie(cookie);
+  if (!isValidCookie(cookie)) return null;
+  const idx = cookie.lastIndexOf(".");
+  const value = cookie.slice(0, idx);
+  if (value === "superadmin") return "superadmin";
+  if (value === "admin" || value === "ok") return "admin";
+  return null;
+}
+
+export function isAuthenticated(req) {
+  return readRole(req) !== null;
+}
+
+export function isSuperAdmin(req) {
+  return readRole(req) === "superadmin";
 }
 
 export async function login(password) {
   if (typeof password !== "string" || password.length === 0) return null;
+  if (
+    SUPERADMIN_PASSWORD &&
+    constantTimeStringEqual(password, SUPERADMIN_PASSWORD)
+  ) {
+    return { cookie: buildCookie("superadmin"), role: "superadmin" };
+  }
   const ok = await checkPasswordAsync(password);
   if (!ok) return null;
-  return buildCookie("ok");
+  return { cookie: buildCookie("admin"), role: "admin" };
 }
 
 export function logout() {

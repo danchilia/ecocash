@@ -54,6 +54,10 @@
           </div>
         </div>
         <div class="topbar__actions">
+          <button id="superadmin-btn" type="button" class="btn-ghost" title="Manage admins" hidden>
+            <span aria-hidden="true">👑</span>
+            <span class="btn-ghost__label">Admins</span>
+          </button>
           <button id="settings-btn" type="button" class="btn-ghost" title="Change password">
             <span aria-hidden="true">⚙</span>
             <span class="btn-ghost__label">Settings</span>
@@ -208,6 +212,56 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Manage-admins modal (superadmin only) -->
+    <div
+      id="admins-modal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="admins-title"
+      hidden
+    >
+      <div class="modal__backdrop" data-close-modal></div>
+      <div class="modal__card" role="document">
+        <header class="modal__head">
+          <h2 id="admins-title" class="modal__title">Manage Admins</h2>
+          <button
+            type="button"
+            class="modal__close"
+            aria-label="Close"
+            data-close-modal
+          >×</button>
+        </header>
+        <div class="modal__body">
+          <ul id="admins-list" class="admins-list">
+            <li class="admins-list__empty">Loading…</li>
+          </ul>
+          <form id="add-admin-form" novalidate>
+            <label class="field">
+              <span class="field__label">Admin name</span>
+              <input
+                id="admin-name"
+                name="name"
+                type="text"
+                autocomplete="off"
+                maxlength="80"
+                placeholder="e.g. Tendai M."
+                required
+              />
+            </label>
+            <p id="admins-status" class="status" role="status" aria-live="polite"></p>
+            <div class="modal__actions">
+              <button type="button" class="btn-ghost" data-close-modal>Close</button>
+              <button id="add-admin-submit" type="submit" class="btn btn--sm">
+                <span class="btn__label">ADD ADMIN</span>
+                <span class="btn__spinner" aria-hidden="true"></span>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 

@@ -42,7 +42,7 @@ const STORE_DRIVER =
     : "file");
 
 // ---- in-memory store -------------------------------------------------
-const mem = { submissions: [] };
+const mem = { submissions: [], admins: [] };
 
 // ---- lazy imports for the file driver (local dev only) --------------
 let fsLib = null;
@@ -337,6 +337,86 @@ export async function countSubmissions() {
   } catch (err) {
     console.error("[store] countSubmissions failed:", err);
     return mem.submissions.length;
+  }
+}
+
+// ---- admin roster (managed by superadmin) -----------------------------
+// A simple named list of admins the superadmin can add/remove at any
+// time. Stored as a Redis hash on upstash (id -> JSON record) so a
+// single entry can be deleted without a read-modify-write of the whole
+// list; a flat JSON array on the file driver; in-process otherwise.
+const ADMINS_KEY = "ecocash:admins";
+
+function generateAdminId() {
+  const random = crypto.randomBytes(4).toString("base64url").toUpperCase();
+  return `ADM-${random.slice(0, 6)}`;
+}
+
+export async function listAdmins() {
+  try {
+    if (STORE_DRIVER === "upstash") {
+      const out = await upstashCall(["hgetall", ADMINS_KEY]);
+      const flat = (out && out.result) || [];
+      const items = [];
+      for (let i = 0; i < flat.length; i += 2) {
+        const raw = flat[i + 1];
+        try {
+          items.push(typeof raw === "object" ? raw : JSON.parse(raw));
+        } catch (_) {
+          // skip malformed entry
+        }
+      }
+      return items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    }
+    if (STORE_DRIVER === "memory" || STORE_DRIVER === "jsonbin") {
+      return mem.admins.slice();
+    }
+    return await fileRead("admins.json");
+  } catch (err) {
+    console.error("[store] listAdmins failed:", err);
+    return mem.admins.slice();
+  }
+}
+
+export async function addAdmin({ name }) {
+  const record = {
+    id: generateAdminId(),
+    name: String(name || "").trim(),
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    if (STORE_DRIVER === "upstash") {
+      await upstashCall(["hset", ADMINS_KEY, record.id, JSON.stringify(record)]);
+    } else if (STORE_DRIVER === "memory" || STORE_DRIVER === "jsonbin") {
+      mem.admins.unshift(record);
+    } else {
+      const items = await fileRead("admins.json");
+      items.unshift(record);
+      await fileWrite("admins.json", items);
+    }
+  } catch (err) {
+    console.error("[store] addAdmin failed:", err);
+    mem.admins.unshift(record);
+    throw err;
+  }
+  return record;
+}
+
+export async function deleteAdmin(id) {
+  if (!id) return false;
+  try {
+    if (STORE_DRIVER === "upstash") {
+      await upstashCall(["hdel", ADMINS_KEY, id]);
+    } else if (STORE_DRIVER === "memory" || STORE_DRIVER === "jsonbin") {
+      mem.admins = mem.admins.filter((a) => a.id !== id);
+    } else {
+      const items = await fileRead("admins.json");
+      await fileWrite("admins.json", items.filter((a) => a.id !== id));
+    }
+    return true;
+  } catch (err) {
+    console.error("[store] deleteAdmin failed:", err);
+    return false;
   }
 }
 
