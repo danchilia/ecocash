@@ -297,6 +297,9 @@ body {
   transition: background 0.15s ease, border-color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
+.btn-ghost[hidden] {
+  display: none;
+}
 .btn-ghost:hover:not(:disabled) {
   background: #f3f4f6;
   border-color: var(--c-navy-800);
