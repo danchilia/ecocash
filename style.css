@@ -236,6 +236,10 @@ body {
   gap: clamp(12px, 1.6vw, 16px);
 }
 
+.form[hidden] {
+  display: none;
+}
+
 .field input {
   width: 100%;
   height: clamp(46px, 5.5vw, 52px);
